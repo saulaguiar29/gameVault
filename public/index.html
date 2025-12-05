@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+    <title>GameVault</title>
+  </head>
+  <body>
+    <div id="app">
+      <h1>GameVault</h1>
+
+      <!-- Login Page -->
+      <nav v-if="loggedIn">
+        <button @click="setPage('home')">Home</button>
+        <!-- <button @click="setPage('addGame')">Add Game</button> -->
+        <button @click="logout">Logout</button>
+      </nav>
+
+      <!-- Login Page -->
+      <div v-if="currentPage === 'login'">
+        <h2>Login</h2>
+        <form @submit.prevent="loginUser">
+          <div>
+            <label for="loginEmail">Email</label>
+            <input id="loginEmail" type="email" v-model="loginEmail" required />
+          </div>
+
+          <div>
+            <label for="loginPassword">Password</label>
+            <input
+              id="loginPassword"
+              type="password"
+              v-model="loginPassword"
+              required
+            />
+          </div>
+
+          <button type="submit">Sign In</button>
+          <p>
+            Don't have an account?
+            <span
+              @click="setPage('register')"
+              style="cursor: pointer; color: #ee9b00"
+              >Register</span
+            >
+          </p>
+          <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+        </form>
+      </div>
+
+      <!-- Register Page -->
+      <div v-if="currentPage === 'register'">
+        <h2>Register</h2>
+        <form @submit.prevent="register">
+          <div>
+            <label for="firstName">First Name</label>
+            <input
+              id="firstName"
+              type="text"
+              v-model="registerFirstName"
+              required
+            />
+          </div>
+
+          <div>
+            <label for="lastName">Last Name</label>
+            <input
+              id="lastName"
+              type="text"
+              v-model="registerLastName"
+              required
+            />
+          </div>
+
+          <div>
+            <label for="email">Email</label>
+            <input id="email" type="email" v-model="registerEmail" required />
+          </div>
+
+          <div>
+            <label for="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              v-model="registerPassword"
+              required
+              minlength="8"
+            />
+          </div>
+
+          <button type="submit">Register</button>
+          <p>
+            Already have an account?
+            <span
+              @click="setPage('login')"
+              style="cursor: pointer; color: #ee9b00"
+              >Sign In</span
+            >
+          </p>
+          <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+        </form>
+      </div>
+
+      <!-- Home Page -->
+      <div v-if="currentPage === 'home'">
+        <h2>Welcome, {{ userFirstName }}</h2>
+
+        <!-- Game Library -->
+
+        <div v-if="showDeleteModal" class="modal">
+          <div class="modal-content">
+            <h3>Confirm Deletion</h3>
+            <p>
+              Are you sure you want to delete
+              <strong>{{ gameToDelete.name }}</strong>?
+            </p>
+            <button class="confirm" @click="confirmDelete">Yes, Delete</button>
+            <button class="cancel" @click="showDeleteModal = false">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div class="game-controls">
+          <input
+            type="text"
+            placeholder="Search games..."
+            v-model="searchQuery"
+          />
+          <button @click="setPage('addGame')">Add Game +</button>
+        </div>
+
+        <div v-if="filteredGames.length === 0" class="empty-library">
+          <p>Your game library is empty. Add some games to get started!</p>
+        </div>
+
+        <div class="filter-container">
+          <select v-model="filterPlatform">
+            <option value="">All Platforms</option>
+            <option
+              v-for="platform in uniquePlatforms"
+              :key="platform"
+              :value="platform"
+            >
+              {{ platform }}
+            </option>
+          </select>
+
+          <select v-model="filterCondition">
+            <option value="">All Conditions</option>
+            <option value="New">New</option>
+            <option value="Like New">Like New</option>
+            <option value="Good">Good</option>
+            <option value="Fair">Fair</option>
+            <option value="Poor">Poor</option>
+            <option value="CIB">CIB</option>
+            <option value="No Box">No Box</option>
+          </select>
+
+          <label>
+            <input type="checkbox" v-model="filterWishlist" />
+            Wishlist
+          </label>
+
+          <label>
+            <input type="checkbox" v-model="filterFavorite" />
+            Favorite
+          </label>
+
+          <label>
+            <input type="checkbox" v-model="filterPlaying" />
+            Currently Playing
+          </label>
+
+          <button @click="resetFilters">Reset Filters</button>
+        </div>
+
+        <div class="game-library">
+          <div v-for="game in filteredGames" :key="game._id" class="game-card">
+            <img :src="game.image" alt="Game Cover" v-if="game.image" />
+            <img src="uploads/dk_confused.png" alt="No Image" v-else />
+            <h3>{{ game.name }}</h3>
+            <p>Platform: {{ game.platform }}</p>
+            <p v-if="game.progress !== undefined && game.progress !== null">
+              Progress: {{ game.progress }}%
+            </p>
+            <div class="game-tags">
+              <span v-if="game.wishlist" class="tag wishlist">Wishlist</span>
+              <span v-if="game.favorite" class="tag favorite">Favorite</span>
+              <span v-if="game.playing" class="tag playing"
+                >Currently Playing</span
+              >
+              <span v-if="game.rating" class="tag rating"
+                >{{ game.rating }}</span
+              >
+            </div>
+            <div class="game-buttons">
+              <button @click="editGame(game._id)">Edit</button>
+              <button @click="askToDelete(game)">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Game Page -->
+      <div v-if="currentPage === 'addGame'">
+        <h2>Add Game</h2>
+        <form @submit.prevent="addVideogame" class="game-form">
+          <div class="form-group">
+            <label for="gameName">Name*</label>
+            <input
+              id="gameName"
+              type="text"
+              v-model="newVideogameName"
+              placeholder="Game Name"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="gamePlatform">Platform*</label>
+            <input
+              id="gamePlatform"
+              type="text"
+              v-model="newVideogamePlatform"
+              placeholder="Platform"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="gameCondition">Condition</label>
+            <select id="gameCondition" v-model="gameCondition">
+              <option value="">Select condition</option>
+              <option value="New">New</option>
+              <option value="Like New">Like New</option>
+              <option value="Good">Good</option>
+              <option value="Fair">Fair</option>
+              <option value="Poor">Poor</option>
+              <option value="CIB">CIB</option>
+              <option value="No Box">No Box</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="gameGenre">Genre</label>
+            <input
+              id="gameGenre"
+              type="text"
+              v-model="gameGenre"
+              placeholder="Genre"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="gameProgress">Progress</label>
+            <input
+              id="gameProgress"
+              type="number"
+              v-model="gameProgress"
+              placeholder="0-100"
+              min="0"
+              max="100"
+            />
+          </div>
+
+          <div class="form-group checkbox">
+            <label for="gameWishlist">
+              <input id="gameWishlist" type="checkbox" v-model="gameWishlist" />
+              Wishlist
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="gameYear">Year</label>
+            <input
+              id="gameYear"
+              type="number"
+              v-model="gameYear"
+              placeholder="Year (e.g., 2000)"
+              min="1900"
+              :max="new Date().getFullYear()"
+            />
+          </div>
+
+          <div class="form-group checkbox">
+            <label for="gameFavorite">
+              <input id="gameFavorite" type="checkbox" v-model="gameFavorite" />
+              Favorite
+            </label>
+          </div>
+
+          <div class="form-group checkbox">
+            <label for="gamePlaying">
+              <input id="gamePlaying" type="checkbox" v-model="gamePlaying" />
+              Currently Playing
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="gameRating">Rating</label>
+            <select id="gameRating" v-model="gameRating">
+              <option value="">Select rating</option>
+              <option value="E">E</option>
+              <option value="T">T</option>
+              <option value="M">M</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="gameScore">Score</label>
+            <input
+              id="gameScore"
+              type="number"
+              v-model="gameScore"
+              placeholder="0-100"
+              min="0"
+              max="100"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="gameDifficulty">Difficulty</label>
+            <input
+              id="gameDifficulty"
+              type="number"
+              v-model="gameDifficulty"
+              placeholder="0-10"
+              min="0"
+              max="10"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="gameNotes">Notes</label>
+            <textarea
+              id="gameNotes"
+              v-model="gameNotes"
+              placeholder="Notes"
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="gameImage">Upload Image</label>
+            <input
+              id="gameImage"
+              type="file"
+              @change="uploadImage"
+              accept="image/*"
+            />
+            <div v-if="gameImage" class="image-preview">
+              <img :src="gameImage" alt="Game Cover" />
+            </div>
+          </div>
+
+          <div class="form-buttons">
+            <button type="submit">Add Game</button>
+            <button type="button" @click="setPage('home')">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Edit Game Page -->
+      <div v-if="currentPage === 'edit'">
+        <h2>Edit Game</h2>
+        <form @submit.prevent="updateVideogame" class="game-form">
+          <div class="form-group">
+            <label for="editGameName">Name*</label>
+            <input
+              id="editGameName"
+              type="text"
+              v-model="newVideogameName"
+              placeholder="Game Name"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="editGamePlatform">Platform*</label>
+            <input
+              id="editGamePlatform"
+              type="text"
+              v-model="newVideogamePlatform"
+              placeholder="Platform"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="editGameCondition">Condition</label>
+            <select id="editGameCondition" v-model="gameCondition">
+              <option value="">Select condition</option>
+              <option value="New">New</option>
+              <option value="Like New">Like New</option>
+              <option value="Good">Good</option>
+              <option value="Fair">Fair</option>
+              <option value="Poor">Poor</option>
+              <option value="CIB">CIB</option>
+              <option value="No Box">No Box</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="editGameGenre">Genre</label>
+            <input
+              id="editGameGenre"
+              type="text"
+              v-model="gameGenre"
+              placeholder="Genre"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="editGameProgress">Progress</label>
+            <input
+              id="editGameProgress"
+              type="number"
+              v-model="gameProgress"
+              placeholder="0-100"
+              min="0"
+              max="100"
+            />
+          </div>
+
+          <div class="form-group checkbox">
+            <label for="editGameWishlist">
+              <input
+                id="editGameWishlist"
+                type="checkbox"
+                v-model="gameWishlist"
+              />
+              Wishlist
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="editGameYear">Year</label>
+            <input
+              id="editGameYear"
+              type="number"
+              v-model="gameYear"
+              placeholder="Year"
+              min="1900"
+              :max="new Date().getFullYear()"
+            />
+          </div>
+
+          <div class="form-group checkbox">
+            <label for="editGameFavorite">
+              <input
+                id="editGameFavorite"
+                type="checkbox"
+                v-model="gameFavorite"
+              />
+              Favorite
+            </label>
+          </div>
+
+          <div class="form-group checkbox">
+            <label for="editGamePlaying">
+              <input
+                id="editGamePlaying"
+                type="checkbox"
+                v-model="gamePlaying"
+              />
+              Currently Playing
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="editGameRating">Rating</label>
+            <select id="editGameRating" v-model="gameRating">
+              <option value="">Select rating</option>
+              <option value="E">E</option>
+              <option value="T">T</option>
+              <option value="M">M</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="editGameScore">Score</label>
+            <input
+              id="editGameScore"
+              type="number"
+              v-model="gameScore"
+              placeholder="0-100"
+              min="0"
+              max="100"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="editGameDifficulty">Difficulty</label>
+            <input
+              id="editGameDifficulty"
+              type="number"
+              v-model="gameDifficulty"
+              placeholder="0-10"
+              min="0"
+              max="10"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="editGameNotes">Notes</label>
+            <textarea
+              id="editGameNotes"
+              v-model="gameNotes"
+              placeholder="Notes"
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="editGameImage">Upload Image</label>
+            <input
+              id="editGameImage"
+              type="file"
+              @change="uploadImage"
+              accept="image/*"
+            />
+            <div v-if="gameImage" class="image-preview">
+              <img :src="gameImage" alt="Game Cover" />
+            </div>
+          </div>
+
+          <div class="form-buttons">
+            <button type="submit">Save Changes</button>
+            <button type="button" @click="setPage('home')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
