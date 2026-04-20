@@ -72,3 +72,5 @@ A web application for managing video game collections with user authentication.
 ## Deployment
 
 https://s25-midterm-project-saulaguiar29.onrender.com
+
+![gamevault](./gamevault.png)
